@@ -1,3 +1,5 @@
+from gevent.event import Event
+
 class StateMachine:
     
     def __init__(self, config):
