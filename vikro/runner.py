@@ -49,7 +49,7 @@ def load_service_class(service_path):
             service_path))
 
 def start_service(service_class):
-    service = service_class(None)
+    service = service_class()
     if not isinstance(service, vikro.service.BaseService):
         raise RuntimeError("{} is not Service type\n".format(service_class))
     service.start()
