@@ -1,12 +1,14 @@
 from .fsm import StateMachine
 from gevent.pywsgi import WSGIServer
+from route import parse_route_rule
 
 class BaseServiceType(type):
     def __init__(cls, name, bases, attrs):
         for key, val in attrs.iteritems():
-            properties = getattr(val, 'route_pattern', None)
-            if properties is not None:
-                cls.route_table[properties] = key
+            rule = getattr(val, 'route_rule', None)
+            if rule is not None:
+                re_rule = parse_route_rule(rule)
+                cls.route_table[re_rule] = key
 
 class BaseService(object):
     __metaclass__ = BaseServiceType
@@ -33,17 +35,20 @@ class BaseService(object):
     def reload(self):
         pass
 
-    @classmethod
-    def route(cls, pattern):
+    @staticmethod
+    def route(rule):
         def decorator(f):
-            f.route_pattern = pattern
+            f.route_rule = rule
             return f
         return decorator
 
     def dispatcher(self, env, start_response):
-        if env['PATH_INFO'] in self.route_table:
-            func = getattr(self, self.route_table[env['PATH_INFO']])
-            return func(start_response)
+        for route_pattern, view_func_name in self.route_table.iteritems():
+            match_obj = route_pattern.match(env['PATH_INFO'])
+            if match_obj is not None:
+                match_group = match_obj.groupdict()
+                view_func = getattr(self, view_func_name)
+                return view_func(start_response, **match_group)
         else:
             start_response('404 Not Found', [('Content-Type', 'text/html')])
             return [b'<h1>Not Found</h1>']

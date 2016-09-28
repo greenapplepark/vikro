@@ -17,7 +17,6 @@ def run_vikro():
     if args.service:
         try:
             service_class = load_service_class(args.service)
-            print service_class
             start_service(service_class)
         except RuntimeError, e:
             parser.error(e)
@@ -30,7 +29,6 @@ def run_vikromgr():
 
 
 def load_service_class(service_path):
-    print "load_service_class"
     if '.' not in service_path:
         raise RuntimeError("Invalid class path")
     module_name, class_name = service_path.rsplit('.', 1)
