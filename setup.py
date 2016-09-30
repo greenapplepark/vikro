@@ -12,9 +12,9 @@ setup(
     description='Lightweight micro service framework',
     packages=find_packages(),
     classifiers=[
-        "Operating System :: OS Independent",
-        "Programming Language :: Python :: 2.7",
-        "Topic :: Software Development :: Libraries :: Python Modules",
+        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 2.7',
+        'Topic :: Software Development :: Libraries :: Python Modules',
         ],
     entry_points={
         'console_scripts': [

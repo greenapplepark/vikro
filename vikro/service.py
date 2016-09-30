@@ -1,4 +1,4 @@
-from .fsm import StateMachine
+from fsm import StateMachine
 from gevent.pywsgi import WSGIServer
 from route import parse_route_rule
 
@@ -13,24 +13,36 @@ class BaseServiceType(type):
 class BaseService(object):
     __metaclass__ = BaseServiceType
     route_table = {}
+    state_machine_config = {
+        'initial': 'init',
+        'transitions': [
+            {'name': 'start', 'src': 'init', 'dst': 'starting'},
+            {'name': 'started', 'src': 'starting', 'dst': 'running'},
+            {'name': 'stop', 'src': 'running', 'dst': 'stopping'},
+            {'name': 'stopped', 'src': 'stopping', 'dst': 'init'},
+        ]
+    }
     
     def __init__(self):
-        self._state_machine = StateMachine(None)
+        self._state_machine = StateMachine(self.state_machine_config)
         self._components = []
 
     def add_component(self, component):
         pass
 
     def start(self):
+        self._state_machine.start()
+        print 'BaseService start\n'
+        print('Serving on 8088...\n')
+        WSGIServer(('', 8088), self.dispatcher).start()
         for c in self._components:
             c.initialize()
-
-        print "BaseService start\n"
-        print('Serving on 8088...\n')
-        WSGIServer(('', 8088), self.dispatcher).serve_forever()
+        self._state_machine.started()
 
     def stop(self):
-        pass
+        self._state_machine.stop()
+        # clean up
+        self._state_machine.stopped()
 
     def reload(self):
         pass
@@ -43,6 +55,9 @@ class BaseService(object):
         return decorator
 
     def dispatcher(self, env, start_response):
+        if self._state_machine.current_state != 'running':
+            start_response('503 Service Unavailable', [('Content-Type', 'text/html')])
+            return [b'<h1>Service Unavailable</h1>']
         for route_pattern, view_func_name in self.route_table.iteritems():
             match_obj = route_pattern.match(env['PATH_INFO'])
             if match_obj is not None:
