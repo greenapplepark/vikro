@@ -23,10 +23,8 @@ def run_vikro():
     else:
         parser.print_usage()
 
-
 def run_vikromgr():
     print 'run_vikromgr'
-
 
 def load_service_class(service_path):
     if '.' not in service_path:

@@ -8,7 +8,6 @@ RULE_RE = re.compile(r'''
         (?P<variable>[a-zA-Z_][a-zA-Z0-9_]*)    # variable name
     >''', re.VERBOSE)
 
-
 RE_REPLACEMENT = {
     'string': r'\w+',
     'int': r'\d+',

@@ -1,6 +1,7 @@
 from fsm import StateMachine
 from gevent.pywsgi import WSGIServer
 from route import parse_route_rule
+import gevent
 
 class BaseServiceType(type):
     def __init__(cls, name, bases, attrs):
@@ -9,6 +10,7 @@ class BaseServiceType(type):
             if rule is not None:
                 re_rule = parse_route_rule(rule)
                 cls.route_table[re_rule] = key
+
 
 class BaseService(object):
     __metaclass__ = BaseServiceType
@@ -25,23 +27,25 @@ class BaseService(object):
     
     def __init__(self):
         self._state_machine = StateMachine(self.state_machine_config)
-        self._components = []
+        self._components = {}
 
-    def add_component(self, component):
-        pass
+    def add_component(self, component_cls):
+        instance = component_cls(None)
+        type = instance.component_type
+        self._components[type] = instance
 
     def start(self):
         self._state_machine.start()
         print 'BaseService start\n'
         print('Serving on 8088...\n')
         WSGIServer(('', 8088), self.dispatcher).start()
-        for c in self._components:
-            c.initialize()
+        gevent.joinall([gevent.spawn(c.initialize) for c in self._components.itervalues()])
         self._state_machine.started()
 
     def stop(self):
         self._state_machine.stop()
-        # clean up
+        for c in self._components.itervalues():
+            c.finalize()
         self._state_machine.stopped()
 
     def reload(self):

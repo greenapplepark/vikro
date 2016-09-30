@@ -1,12 +1,14 @@
 from vikro.service import BaseService
+from vikro.components.rabbitmq import RabbitMQComponent
 
 class HelloService(BaseService):
 
     def start(self):
+        self.add_component(RabbitMQComponent)
         super(HelloService, self).start()
 
     def stop(self):
-        pass
+        super(HelloService, self).stop()
 
     def reload(self):
         pass
@@ -15,7 +17,6 @@ class HelloService(BaseService):
     def test_hello(self, start_response):
         start_response('200 OK', [('Content-Type', 'text/html')])
         return [b'<b>hello world from hello module</b>']
-
 
     @BaseService.route('/keke')
     def test_keke(self, start_response):

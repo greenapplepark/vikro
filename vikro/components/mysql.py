@@ -1,8 +1,8 @@
-from .component import BaseComponent
+from . import BaseComponent
 
 class MySQLComponent(BaseComponent):
     
-    def __init__(self):
+    def __init__(self, config):
         pass
 
     def initialize(self):
