@@ -53,7 +53,7 @@ class BaseService(object):
         gevent.spawn(self._do_stop)
         self._state_machine.wait_in('stopping')
 
-    def _do_stop():
+    def _do_stop(self):
         for c in self._components.itervalues():
             c.finalize()
         self._state_machine.stopped()
