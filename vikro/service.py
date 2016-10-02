@@ -36,14 +36,24 @@ class BaseService(object):
 
     def start(self):
         self._state_machine.start()
+        gevent.spawn(self._do_start)
+        self._state_machine.wait_in('starting')
+        # Now the service started
+        self._state_machine.wait_in('running')
+
+    def _do_start(self):
         print 'BaseService start\n'
         print('Serving on 8088...\n')
         WSGIServer(('', 8088), self.dispatcher).start()
         gevent.joinall([gevent.spawn(c.initialize) for c in self._components.itervalues()])
         self._state_machine.started()
-
+        
     def stop(self):
         self._state_machine.stop()
+        gevent.spawn(self._do_stop)
+        self._state_machine.wait_in('stopping')
+
+    def _do_stop():
         for c in self._components.itervalues():
             c.finalize()
         self._state_machine.stopped()

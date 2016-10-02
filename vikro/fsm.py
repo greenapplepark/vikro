@@ -35,7 +35,7 @@ class StateMachine:
         self._current_state = to_state
         if to_state != self._initial:
             self._wait_events[to_state].clear()
-            try:
-                self._wait_events[to_state].wait()
-            except Exception:
-                pass
+
+    def wait_in(self, wait_in_state):
+        if wait_in_state in self._wait_events:
+            self._wait_events[wait_in_state].wait()
