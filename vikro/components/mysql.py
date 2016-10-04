@@ -2,7 +2,7 @@ from . import BaseComponent
 
 class MySQLComponent(BaseComponent):
     
-    def __init__(self, config):
+    def __init__(self, config, service):
         pass
 
     def initialize(self):

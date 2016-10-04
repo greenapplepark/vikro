@@ -30,7 +30,7 @@ class BaseService(object):
         self._components = {}
 
     def add_component(self, component_cls):
-        instance = component_cls(None)
+        instance = component_cls(None, self)
         type = instance.component_type
         self._components[type] = instance
 
@@ -81,3 +81,6 @@ class BaseService(object):
         else:
             start_response('404 Not Found', [('Content-Type', 'text/html')])
             return [b'<h1>Not Found</h1>']
+
+    def remote_service_call_handler(self, func, *args, **kwargs):
+        print 'received remote server call %s' % func

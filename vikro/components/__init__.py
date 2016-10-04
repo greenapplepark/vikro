@@ -3,7 +3,7 @@ COMPONENT_TYPE_AMQP = 1
 COMPONENT_TYPE_DATABASE = 2
 
 class BaseComponent:
-    def __init__(self, config):
+    def __init__(self, config, service):
         raise NotImplementedError('Subclasses should implement __init__!')
 
     def initialize(self):
