@@ -8,5 +8,8 @@ class MemcachedComponent(BaseComponent):
     def initialize(self):
         pass
 
+    def run(self):
+        pass
+
     def finalize(self):
         pass

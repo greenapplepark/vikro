@@ -1,6 +1,8 @@
 from fsm import StateMachine
 from gevent.pywsgi import WSGIServer
 from route import parse_route_rule
+from proxy import Proxy
+from components import COMPONENT_TYPE_AMQP
 import gevent
 
 class BaseServiceType(type):
@@ -38,12 +40,13 @@ class BaseService(object):
         self._state_machine.start()
         gevent.spawn(self._do_start)
         self._state_machine.wait_in('starting')
+        for c in self._components.itervalues():
+            c.run()
         # Now the service started
         self._state_machine.wait_in('running')
 
     def _do_start(self):
-        print 'BaseService start\n'
-        print('Serving on 8088...\n')
+        print 'Serving on 8088...'
         WSGIServer(('', 8088), self.dispatcher).start()
         gevent.joinall([gevent.spawn(c.initialize) for c in self._components.itervalues()])
         self._state_machine.started()
@@ -60,6 +63,14 @@ class BaseService(object):
 
     def reload(self):
         pass
+
+    def get_proxy(self, service_name):
+        amqp = self._components[COMPONENT_TYPE_AMQP] if COMPONENT_TYPE_AMQP in self._components else None
+        return Proxy(None, amqp, service_name)
+
+    @property
+    def is_running(self):
+        return self._state_machine.current_state == 'running'
 
     @staticmethod
     def route(rule):

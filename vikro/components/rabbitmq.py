@@ -20,13 +20,44 @@ class RabbitMQComponent(BaseComponent):
     def initialize(self):
         try:
             self._connection.connect()
-            gevent.spawn(self._listener)
+            # gevent.spawn(self._listener)
         except Exception, e:
-            print e
-            print 'Failed to connect to rabbitmq server'
+            print 'Failed to connect to rabbitmq server', e
+
+    def run(self):
+        gevent.spawn(self._listener)
 
     def finalize(self):
         self._connection.release()
+
+    def _listener(self):
+        while self.is_connected() == False:
+            print "waiting for connection"
+            gevent.sleep(1)
+        with self._connection.Consumer(queues=self._service_queue, callbacks=[self._on_request]):
+            while self._parent_service.is_running:
+                try:
+                    self._connection.drain_events(timeout=1)
+                except socket.timeout:
+                    pass
+                except KeyboardInterrupt:
+                    return
+                except Exception, e:
+                    print e
+                    return
+                gevent.sleep(1)
+
+    def is_connected(self):
+        return self._connection.connected
+
+    def _make_exchange(self, name, type='direct'):
+        return kombu.Exchange(name, type)
+
+    def _make_queue(self, name, exchange):
+        return kombu.Queue(name, exchange)
+
+    def _on_request(self, request, message):
+        print 'got message222!!! %s' % message.payload
 
     def _listener2(self):
         while self.is_connected() == False:
@@ -46,31 +77,3 @@ class RabbitMQComponent(BaseComponent):
                 except Queue.Empty:
                     pass
                 gevent.sleep(1)
-
-    def _listener(self):
-        while self.is_connected() == False:
-            print "waiting for connection"
-            gevent.sleep(1)
-        with self._connection.Consumer(queues=self._service_queue, callbacks=[self._on_request]):
-            while True:
-                try:
-                    self._connection.drain_events(timeout=1)
-                except socket.timeout:
-                    pass
-                except KeyboardInterrupt:
-                    return
-                except Exception, e:
-                    print e
-                    return
-
-    def is_connected(self):
-        return self._connection
-
-    def _make_exchange(self, name, type='direct'):
-        return kombu.Exchange(name, type)
-
-    def _make_queue(self, name, exchange):
-        return kombu.Queue(name, exchange)
-
-    def _on_request(self, request, message):
-        print 'got message222!!! %s' % message.payload
