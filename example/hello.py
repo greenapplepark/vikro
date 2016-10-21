@@ -1,10 +1,11 @@
 from vikro.service import BaseService
-from vikro.components.rabbitmq import RabbitMQComponent
 
 class HelloService(BaseService):
 
+    def __init__(self, service_config):
+        super(HelloService, self).__init__(service_config)
+
     def start(self):
-        self.add_component(RabbitMQComponent)
         super(HelloService, self).start()
 
     def stop(self):

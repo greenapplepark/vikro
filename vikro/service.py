@@ -1,9 +1,11 @@
+import runpy
+import gevent
+import types
 from fsm import StateMachine
 from gevent.pywsgi import WSGIServer
 from route import parse_route_rule
 from proxy import Proxy
-from components import COMPONENT_TYPE_AMQP
-import gevent
+from components import *
 
 class BaseServiceType(type):
     def __init__(cls, name, bases, attrs):
@@ -27,14 +29,19 @@ class BaseService(object):
         ]
     }
     
-    def __init__(self):
+    def __init__(self, service_config):
+        print service_config
         self._state_machine = StateMachine(self.state_machine_config)
         self._components = {}
+        self.add_component_from_config(service_config)
 
-    def add_component(self, component_cls):
-        instance = component_cls(None, self)
-        type = instance.component_type
-        self._components[type] = instance
+    def add_component_from_config(self, service_config):
+        for module_name in service_config:
+            module = runpy.run_module('vikro.components.' + module_name)
+            for m in module:
+                if type(module[m]) == types.TypeType and module[m] != BaseComponent and issubclass(module[m], BaseComponent):
+                    instance = module[m](self, **service_config[module_name])
+                    self._components[instance.component_type] = instance
 
     def start(self):
         self._state_machine.start()
@@ -66,7 +73,7 @@ class BaseService(object):
 
     def get_proxy(self, service_name):
         amqp = self._components[COMPONENT_TYPE_AMQP] if COMPONENT_TYPE_AMQP in self._components else None
-        return Proxy(None, amqp, service_name)
+        return Proxy(None, amqp, service_name, self)
 
     @property
     def is_running(self):

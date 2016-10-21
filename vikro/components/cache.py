@@ -1,6 +1,6 @@
 from . import BaseComponent
 
-class MemcachedComponent(BaseComponent):
+class CacheComponent(BaseComponent):
     
     def __init__(self, config, service):
         pass
