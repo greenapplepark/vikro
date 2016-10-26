@@ -7,6 +7,9 @@ import vikro
 import inspect
 from util import Config2Dict
 from service import BaseService
+import logging
+
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.getcwd())
 
@@ -33,7 +36,7 @@ def run_vikro():
         parser.print_usage()
 
 def run_vikromgr():
-    print 'run_vikromgr'
+    logger.info('run_vikromgr')
 
 def parse_module_class(service_path):
     if '.' not in service_path:
@@ -56,7 +59,7 @@ def parse_config(config, module_name):
             config_parser.read(config_file_path)
             service_config = config_parser.as_dict()
         else:
-            print 'Warning: cannot find config file. Your service will run alone'
+            logger.warning('Cannot find config file. Your service will run alone')
     return service_config
 
 def get_service_class(module_name, class_name):
@@ -81,5 +84,5 @@ def start_service(service_class, service_config):
     try:
         service.start()
     except KeyboardInterrupt:
-        print 'Service stopping'
+        logger.info('Service stopping')
         service.stop()

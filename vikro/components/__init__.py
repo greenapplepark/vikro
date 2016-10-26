@@ -9,9 +9,6 @@ class BaseComponent(object):
     def initialize(self):
         raise NotImplementedError('Subclasses should implement initialize!')
 
-    def run(self):
-        raise NotImplementedError('Subclasses should implement run!')
-
     def finalize(self):
         raise NotImplementedError('Subclasses should implement finalize!')
 

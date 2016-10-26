@@ -1,11 +1,24 @@
 import runpy
 import gevent
 import types
+import functools
 from fsm import StateMachine
 from gevent.pywsgi import WSGIServer
 from route import parse_route_rule
 from proxy import Proxy
-from components import *
+from components import BaseComponent, COMPONENT_TYPE_AMQP
+from gevent import monkey
+monkey.patch_all
+import socket
+import logging
+
+logger = logging.getLogger(__name__)
+
+def greenlet(func):
+    @functools.wraps(func)
+    def wrapped(self, *args, **kwargs):
+        gevent.spawn(func, self, *args, **kwargs)
+    return wrapped
 
 class BaseServiceType(type):
     def __init__(cls, name, bases, attrs):
@@ -14,7 +27,6 @@ class BaseServiceType(type):
             if rule is not None:
                 re_rule = parse_route_rule(rule)
                 cls.route_table[re_rule] = key
-
 
 class BaseService(object):
     __metaclass__ = BaseServiceType
@@ -30,7 +42,6 @@ class BaseService(object):
     }
     
     def __init__(self, service_config):
-        print service_config
         self._state_machine = StateMachine(self.state_machine_config)
         self._components = {}
         self.add_component_from_config(service_config)
@@ -40,29 +51,33 @@ class BaseService(object):
             module = runpy.run_module('vikro.components.' + module_name)
             for m in module:
                 if type(module[m]) == types.TypeType and module[m] != BaseComponent and issubclass(module[m], BaseComponent):
-                    instance = module[m](self, **service_config[module_name])
+                    instance = module[m](**service_config[module_name])
                     self._components[instance.component_type] = instance
 
     def start(self):
         self._state_machine.start()
-        gevent.spawn(self._do_start)
+        self._do_start()
         self._state_machine.wait_in('starting')
-        for c in self._components.itervalues():
-            c.run()
+        # for c in self._components.itervalues():
+        #     c.run()
         # Now the service started
         self._state_machine.wait_in('running')
 
+    @greenlet
     def _do_start(self):
-        print 'Serving on 8088...'
+        logger.info('Serving on 8088...')
         WSGIServer(('', 8088), self.dispatcher).start()
         gevent.joinall([gevent.spawn(c.initialize) for c in self._components.itervalues()])
+        if COMPONENT_TYPE_AMQP in self._components:
+            self._start_amqp_event_listener()
         self._state_machine.started()
         
     def stop(self):
         self._state_machine.stop()
-        gevent.spawn(self._do_stop)
+        self._do_stop()
         self._state_machine.wait_in('stopping')
 
+    @greenlet
     def _do_stop(self):
         for c in self._components.itervalues():
             c.finalize()
@@ -86,6 +101,13 @@ class BaseService(object):
             return f
         return decorator
 
+    @greenlet
+    def _start_amqp_event_listener(self):
+        amqp = self._components[COMPONENT_TYPE_AMQP]
+        service_name = type(self).__name__
+        queue_name = 'service_{0}_queue'.format(service_name)
+        amqp.listen_to_queue(service_name, queue_name, self._on_request, True)
+
     def dispatcher(self, env, start_response):
         if self._state_machine.current_state != 'running':
             start_response('503 Service Unavailable', [('Content-Type', 'text/html')])
@@ -100,5 +122,7 @@ class BaseService(object):
             start_response('404 Not Found', [('Content-Type', 'text/html')])
             return [b'<h1>Not Found</h1>']
 
-    def remote_service_call_handler(self, func, *args, **kwargs):
-        print 'received remote server call %s' % func
+    def _on_request(self, request, message):
+        logger.info('got message222!!! %s' % message.payload)
+
+route = BaseService.route
