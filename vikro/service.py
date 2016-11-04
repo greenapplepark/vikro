@@ -86,9 +86,9 @@ class BaseService(object):
     def reload(self):
         pass
 
-    def get_proxy(self, service_name):
+    def get_proxy(self, dest_service_name):
         amqp = self._components[COMPONENT_TYPE_AMQP] if COMPONENT_TYPE_AMQP in self._components else None
-        return Proxy(None, amqp, service_name, self)
+        return Proxy(None, amqp, dest_service_name, type(self).__name__)
 
     @property
     def is_running(self):
@@ -106,7 +106,7 @@ class BaseService(object):
         amqp = self._components[COMPONENT_TYPE_AMQP]
         service_name = type(self).__name__
         queue_name = 'service_{0}_queue'.format(service_name)
-        amqp.listen_to_queue(service_name, queue_name, self._on_request, True)
+        amqp.listen_to_queue(service_name, queue_name, self._on_request, keep_listening=True)
 
     def dispatcher(self, env, start_response):
         if self._state_machine.current_state != 'running':

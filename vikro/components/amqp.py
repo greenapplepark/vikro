@@ -6,6 +6,7 @@ import gevent
 import Queue
 import socket
 import logging
+from kombu.pools import producers
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,11 @@ class AMQPComponent(BaseComponent):
             if not keep_listening:
                 break
 
+    def publish_message(self, payload, exchange, routing_key='default'):
+        conn = self.get_connection()
+        with producers[conn].acquire(block=True) as producer:
+            producer.publish(payload, exchange=exchange, routing_key=routing_key)
+
     @property
     def component_type(self):
         return self._component_type
@@ -88,5 +94,5 @@ class AMQPComponent(BaseComponent):
     def make_exchange(self, name, type='direct', durable=True, auto_delete=True):
         return kombu.Exchange(name, type, durable=durable, auto_delete=auto_delete)
 
-    def make_queue(self, name, exchange, durable=True, auto_delete=True):
+    def make_queue(self, name, exchange, binding_key='default', durable=True, auto_delete=True):
         return kombu.Queue(name, exchange, durable=durable, auto_delete=auto_delete)

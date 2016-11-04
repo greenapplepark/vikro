@@ -21,6 +21,7 @@ class HelloService(BaseService):
 
     @route('/keke')
     def test_keke(self, start_response):
+        self.get_proxy('HelloService').test(1, 2)
         start_response('200 OK', [('Content-Type', 'text/html')])
         return [b'<i>kekekekeke</i>']
 
