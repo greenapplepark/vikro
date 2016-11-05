@@ -37,7 +37,7 @@ class AMQPComponent(BaseComponent):
     def keep_connecting(self):
         while self._should_keep_connect:
             try:
-                if self._connection.connected is True:
+                if self._connection.connected:
                     logger.debug('Connected to {}'.format(self._url))
                     gevent.sleep(10)
                 else:
@@ -64,7 +64,7 @@ class AMQPComponent(BaseComponent):
                 logger.info('waiting for connection')
                 gevent.sleep(3)
             conn = self.get_connection() 
-            with conn.Consumer(queues=queue, callbacks=[callback]):
+            with conn.Consumer(queues=queue, callbacks=[callback], accept=['pickle']):
                 while self._should_keep_connect:
                     try:
                         conn.drain_events(timeout=1)
@@ -82,7 +82,7 @@ class AMQPComponent(BaseComponent):
     def publish_message(self, payload, exchange, routing_key='default'):
         conn = self.get_connection()
         with producers[conn].acquire(block=True) as producer:
-            producer.publish(payload, exchange=exchange, routing_key=routing_key)
+            producer.publish(payload, exchange=exchange, serializer='pickle', routing_key=routing_key)
 
     @property
     def component_type(self):
@@ -94,5 +94,5 @@ class AMQPComponent(BaseComponent):
     def make_exchange(self, name, type='direct', durable=True, auto_delete=True):
         return kombu.Exchange(name, type, durable=durable, auto_delete=auto_delete)
 
-    def make_queue(self, name, exchange, binding_key='default', durable=True, auto_delete=True):
-        return kombu.Queue(name, exchange, durable=durable, auto_delete=auto_delete)
+    def make_queue(self, name, exchange, routing_key='default', durable=True, auto_delete=True):
+        return kombu.Queue(name, exchange, routing_key=routing_key, durable=durable, auto_delete=auto_delete)
