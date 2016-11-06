@@ -29,3 +29,6 @@ class HelloService(BaseService):
     def test_route(self, start_response, test_int, test_string):
         start_response('200 OK', [('Content-Type', 'text/html')])
         return [b'<i>int: %s, string: %s</i>' % (test_int, test_string)]
+
+    def test(self, a, b):
+        return a + b

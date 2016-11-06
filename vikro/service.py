@@ -8,6 +8,7 @@ from route import parse_route_rule
 from proxy import Proxy
 from components import BaseComponent, COMPONENT_TYPE_AMQP
 from gevent import monkey
+from protocol import AMQPRequest, AMQPResponse
 monkey.patch_all
 import socket
 import logging
@@ -106,7 +107,7 @@ class BaseService(object):
         amqp = self._components[COMPONENT_TYPE_AMQP]
         service_name = type(self).__name__
         queue_name = 'service_{0}_queue'.format(service_name)
-        amqp.listen_to_queue(service_name, queue_name, self._on_request, keep_listening=True)
+        amqp.listen_to_queue(service_name, queue_name, self._on_request, timeout=1, keep_listening=True)
 
     def dispatcher(self, env, start_response):
         if self._state_machine.current_state != 'running':
@@ -123,6 +124,17 @@ class BaseService(object):
             return [b'<h1>Not Found</h1>']
 
     def _on_request(self, request, message):
-        logger.info('got message222!!! %s' % message.payload)
+        if isinstance(message.payload, AMQPRequest):
+            req = message.payload
+            func = getattr(self, req.func_name, None)
+            if func is not None:
+                try:
+                    response = func(*req.func_args, **req.func_kwargs)
+                except Exception, e:
+                    response = e
+            else:
+                response = Exception('MethodNotFound')
+        self._components[COMPONENT_TYPE_AMQP].publish_message(AMQPResponse(response), req.reply_to, req.reply_key)
+            
 
 route = BaseService.route

@@ -53,11 +53,10 @@ class AMQPComponent(BaseComponent):
             except KeyboardInterrupt:
                 break
 
-    def listen_to_queue(self, service_name, queue_name, callback, keep_listening=False):
+    def listen_to_queue(self, service_name, queue_name, callback, routing_key='default', timeout=1, keep_listening=False):
         exchange_name = 'service_{0}_exchange'.format(service_name)
-        queue_name = 'service_{0}_queue'.format(service_name)
         exchange = self.make_exchange(exchange_name)
-        queue = self.make_queue(queue_name, exchange)
+        queue = self.make_queue(queue_name, exchange, routing_key)
         # always try to listen
         while True:
             while self.is_connected() == False:
@@ -65,22 +64,25 @@ class AMQPComponent(BaseComponent):
                 gevent.sleep(3)
             conn = self.get_connection() 
             with conn.Consumer(queues=queue, callbacks=[callback], accept=['pickle']):
-                while self._should_keep_connect:
+                while keep_listening:
                     try:
-                        conn.drain_events(timeout=1)
+                        conn.drain_events(timeout=timeout)
                     except socket.timeout:
-                        pass
+                        if not keep_listening:
+                            break
                     except KeyboardInterrupt:
                         return
                     except Exception, e:
                         logger.error(e)
                         break
-                    gevent.sleep(1)
+                    if keep_listening:
+                        gevent.sleep(0.1)
             if not keep_listening:
                 break
 
-    def publish_message(self, payload, exchange, routing_key='default'):
+    def publish_message(self, payload, exchange_name, routing_key='default'):
         conn = self.get_connection()
+        exchange = self.make_exchange(exchange_name)
         with producers[conn].acquire(block=True) as producer:
             producer.publish(payload, exchange=exchange, serializer='pickle', routing_key=routing_key)
 
