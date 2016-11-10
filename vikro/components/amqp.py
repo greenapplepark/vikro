@@ -3,9 +3,10 @@ from gevent import monkey
 monkey.patch_all
 import kombu
 import gevent
-import Queue
 import socket
+import time
 import logging
+import vikro.exceptions as exc
 from kombu.pools import producers
 
 logger = logging.getLogger(__name__)
@@ -53,38 +54,50 @@ class AMQPComponent(BaseComponent):
             except KeyboardInterrupt:
                 break
 
-    def listen_to_queue(self, service_name, queue_name, callback, routing_key='default', timeout=1, keep_listening=False):
+    def listen_to_queue(self, service_name, queue_name, callback):
         exchange_name = 'service_{0}_exchange'.format(service_name)
         exchange = self.make_exchange(exchange_name)
-        queue = self.make_queue(queue_name, exchange, routing_key)
+        queue = self.make_queue(queue_name, exchange)
         # always try to listen
-        while True:
+        while self._should_keep_connect:
             while self.is_connected() == False:
-                logger.info('waiting for connection')
+                logger.info('Waiting for connection')
                 gevent.sleep(3)
             conn = self.get_connection() 
             with conn.Consumer(queues=queue, callbacks=[callback], accept=['pickle']):
-                while keep_listening:
+                while self._should_keep_connect:
                     try:
-                        conn.drain_events(timeout=timeout)
+                        conn.drain_events(timeout=0.1)
                     except socket.timeout:
-                        if not keep_listening:
-                            break
+                        pass
                     except KeyboardInterrupt:
                         return
                     except Exception, e:
                         logger.error(e)
                         break
-                    if keep_listening:
-                        gevent.sleep(0.1)
-            if not keep_listening:
-                break
+                    gevent.sleep(0.1)
 
     def publish_message(self, payload, exchange_name, routing_key='default'):
         conn = self.get_connection()
         exchange = self.make_exchange(exchange_name)
         with producers[conn].acquire(block=True) as producer:
             producer.publish(payload, exchange=exchange, serializer='pickle', routing_key=routing_key)
+
+    def waiting_for_message(self, service_name, queue_name, routing_key, timeout=1):
+        logger.info('waiting_for_message...')
+        if not self.is_connected():
+            raise exc.VikroAMQPDisconnectedException('AMQP server {} disconnected'.format(self._url))
+        exchange_name = 'service_{0}_exchange'.format(service_name)
+        exchange = self.make_exchange(exchange_name)
+        queue = self.make_queue(queue_name, exchange, routing_key=routing_key)
+
+        conn = self.get_connection() 
+        with conn.SimpleQueue(name=queue) as sq:
+            try:
+                response = sq.get(block=True, timeout=timeout)
+            except Exception, e:
+                raise exc.VikroTimeoutException('timeout')
+            return response
 
     @property
     def component_type(self):

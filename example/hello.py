@@ -1,4 +1,5 @@
 from vikro.service import BaseService, route
+import gevent
 
 class HelloService(BaseService):
 
@@ -31,4 +32,5 @@ class HelloService(BaseService):
         return [b'<i>int: %s, string: %s</i>' % (test_int, test_string)]
 
     def test(self, a, b):
+        # gevent.sleep(3)
         return a + b

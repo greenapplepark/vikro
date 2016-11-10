@@ -1,6 +1,9 @@
 class VikroException(Exception):
     pass
 
+class VikroAMQPDisconnectedException(VikroException):
+    pass
+
 class VikroTimeoutException(VikroException):
     pass
 
