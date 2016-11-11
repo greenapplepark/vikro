@@ -1,5 +1,5 @@
-from gevent.event import Event
 from functools import partial
+from gevent.event import Event
 
 class StateMachine:
     

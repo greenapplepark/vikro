@@ -1,27 +1,31 @@
 import runpy
-import gevent
 import types
 import functools
-from fsm import StateMachine
-from gevent.pywsgi import WSGIServer
-from route import parse_route_rule
-from proxy import Proxy
-from components import BaseComponent, COMPONENT_TYPE_AMQP
-from gevent import monkey
-from protocol import AMQPRequest, AMQPResponse
-monkey.patch_all
-import socket
 import logging
+import gevent
+from gevent.pywsgi import WSGIServer
+from vikro.fsm import StateMachine
+from vikro.route import parse_route_rule
+from vikro.proxy import Proxy
+from vikro.components import BaseComponent, COMPONENT_TYPE_AMQP
+from vikro.protocol import AMQPRequest, AMQPResponse
 
-logger = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 def greenlet(func):
+    """
+    Spawn a greenlet instead calling function directly
+    """
     @functools.wraps(func)
     def wrapped(self, *args, **kwargs):
         gevent.spawn(func, self, *args, **kwargs)
     return wrapped
 
 class BaseServiceType(type):
+    """
+    Meta class of BaseService
+    It is used to record route url to route_table
+    """
     def __init__(cls, name, bases, attrs):
         for key, val in attrs.iteritems():
             rule = getattr(val, 'route_rule', None)
@@ -30,6 +34,13 @@ class BaseServiceType(type):
                 cls.route_table[re_rule] = key
 
 class BaseService(object):
+    """
+    Base class of Service.
+    This BaseService class provides functionalities like
+    * RESTful style route decorator
+    * AMQP/RESTful based RPC
+    which are easy for drived class to use.
+    """
     __metaclass__ = BaseServiceType
     route_table = {}
     state_machine_config = {
@@ -41,77 +52,113 @@ class BaseService(object):
             {'name': 'stopped', 'src': 'stopping', 'dst': 'init'},
         ]
     }
-    
+
     def __init__(self, service_config):
         self._state_machine = StateMachine(self.state_machine_config)
         self._components = {}
         self.add_component_from_config(service_config)
 
     def add_component_from_config(self, service_config):
+        """
+        Read config file and spawn components
+        """
         for module_name in service_config:
-            module = runpy.run_module('vikro.components.' + module_name)
-            for m in module:
-                if type(module[m]) == types.TypeType and module[m] != BaseComponent and issubclass(module[m], BaseComponent):
-                    instance = module[m](**service_config[module_name])
+            modules = runpy.run_module('vikro.components.' + module_name)
+            for module in modules:
+                if (type(modules[module]) == types.TypeType and
+                        modules[module] != BaseComponent and
+                        issubclass(modules[module], BaseComponent)):
+                    instance = modules[module](**service_config[module_name])
                     self._components[instance.component_type] = instance
 
     def start(self):
+        """
+        Start service
+        """
         self._state_machine.start()
         self._do_start()
         self._state_machine.wait_in('starting')
-        # for c in self._components.itervalues():
-        #     c.run()
-        # Now the service started
         self._state_machine.wait_in('running')
 
     @greenlet
     def _do_start(self):
-        logger.info('Serving on 8088...')
+        """
+        Do actual starting work in greenlet.
+        Starting WSGI Server, spawn components,
+        start amqp listener if has
+        """
+        LOG.info('Serving on 8088...')
         WSGIServer(('', 8088), self.dispatcher).start()
-        gevent.joinall([gevent.spawn(c.initialize) for c in self._components.itervalues()])
+        gevent.joinall(
+            [gevent.spawn(c.initialize) for c in self._components.itervalues()])
         if COMPONENT_TYPE_AMQP in self._components:
             self._start_amqp_event_listener()
         self._state_machine.started()
-        
+
     def stop(self):
+        """
+        Stop service
+        """
         self._state_machine.stop()
         self._do_stop()
         self._state_machine.wait_in('stopping')
 
     @greenlet
     def _do_stop(self):
-        for c in self._components.itervalues():
-            c.finalize()
+        """
+        Do actual stopping working in greenlet
+        """
+        for component in self._components.itervalues():
+            component.finalize()
         self._state_machine.stopped()
 
     def reload(self):
+        """
+        Reload service
+        """
         pass
 
     def get_proxy(self, dest_service_name):
-        amqp = self._components[COMPONENT_TYPE_AMQP] if COMPONENT_TYPE_AMQP in self._components else None
+        """
+        Get proxy object to call RPC
+        """
+        amqp = self._components.get(COMPONENT_TYPE_AMQP)
         return Proxy(None, amqp, dest_service_name, type(self).__name__)
 
     @property
     def is_running(self):
+        """
+        Check if service is in running state
+        """
         return self._state_machine.current_state == 'running'
 
     @staticmethod
     def route(rule):
-        def decorator(f):
-            f.route_rule = rule
-            return f
+        """
+        Route decorator to define routing url pattern
+        """
+        def decorator(func):
+            func.route_rule = rule
+            return func
         return decorator
 
     @greenlet
     def _start_amqp_event_listener(self):
+        """
+        Start to listen rpc message from amqp server
+        """
         amqp = self._components[COMPONENT_TYPE_AMQP]
         service_name = type(self).__name__
         queue_name = 'service_{0}_queue'.format(service_name)
-        amqp.listen_to_queue(service_name, queue_name, self._on_request)
+        amqp.listen_to_queue(service_name, queue_name, self._on_amqp_request)
 
     def dispatcher(self, env, start_response):
+        """
+        Dispatcher RESTful based http request to handlers
+        """
         if self._state_machine.current_state != 'running':
-            start_response('503 Service Unavailable', [('Content-Type', 'text/html')])
+            start_response('503 Service Unavailable',
+                           [('Content-Type', 'text/html')])
             return [b'<h1>Service Unavailable</h1>']
         for route_pattern, view_func_name in self.route_table.iteritems():
             match_obj = route_pattern.match(env['PATH_INFO'])
@@ -124,12 +171,15 @@ class BaseService(object):
             return [b'<h1>Not Found</h1>']
 
     @greenlet
-    def _on_request(self, request, message):
-        logger.info('Got message: {}'.format(message.payload))
+    def _on_amqp_request(self, request, message):
+        """
+        Handle amqp rpc request in greenlet
+        """
+        LOG.info('Got message: %s', message.payload)
         if isinstance(message.payload, AMQPRequest):
             req = message.payload
             func = getattr(self, req.func_name, None)
-            logger.info('_on_request got request {}'.format(message.payload))
+            LOG.info('_on_request got request %s', message.payload)
             if func is not None:
                 try:
                     response = func(*req.func_args, **req.func_kwargs)
@@ -137,7 +187,9 @@ class BaseService(object):
                     response = e
             else:
                 response = Exception('MethodNotFound')
-            self._components[COMPONENT_TYPE_AMQP].publish_message(AMQPResponse(response), req.reply_to, req.reply_key)
-            
+            self._components[COMPONENT_TYPE_AMQP].publish_message(
+                AMQPResponse(response),
+                req.reply_to,
+                req.reply_key)
 
 route = BaseService.route

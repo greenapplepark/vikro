@@ -26,7 +26,7 @@ logging.config.dictConfig({
 })
  
 class Config2Dict(ConfigParser.ConfigParser):
-    
+
     def as_dict(self):
         d = dict(self._sections)
         for k in d:

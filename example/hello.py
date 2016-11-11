@@ -1,5 +1,4 @@
 from vikro.service import BaseService, route
-import gevent
 
 class HelloService(BaseService):
 
@@ -14,7 +13,7 @@ class HelloService(BaseService):
 
     def reload(self):
         pass
-    
+
     @route('/hello')
     def test_hello(self, start_response):
         start_response('200 OK', [('Content-Type', 'text/html')])
