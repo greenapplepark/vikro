@@ -1,6 +1,11 @@
+"""
+HelloService example.
+"""
+
 from vikro.service import BaseService, route
 
 class HelloService(BaseService):
+    """Test service."""
 
     def __init__(self, service_config):
         super(HelloService, self).__init__(service_config)

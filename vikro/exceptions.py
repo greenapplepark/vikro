@@ -1,14 +1,21 @@
+"""
+vikro.exceptions
+~~~~~~~~~~~~~~~~
+
+This module contains the set of Vikro' exceptions.
+"""
+
 class VikroException(Exception):
-    pass
+    """Base exception of all vikro exceptions."""
 
 class VikroAMQPDisconnectedException(VikroException):
-    pass
+    """AMPQ is disconnected."""
 
 class VikroTimeoutException(VikroException):
-    pass
+    """RPC request timeout."""
 
 class VikroPartiallyDoneException(VikroException):
-    pass
+    """The request is partially done due to failure of some sub request to other services."""
 
 class VikroMethodNotFoundException(VikroException):
-    pass
+    """The request method is not found."""

@@ -1,3 +1,11 @@
+"""
+vikro.route
+~~~~~~~~~~~
+
+This module provides function to parse url pattern.
+"""
+
+
 import re
 
 RULE_RE = re.compile(r'''
@@ -14,6 +22,7 @@ RE_REPLACEMENT = {
 }
 
 def parse_route_rule(route_rule):
+    """Parse url pattern."""
     pos = 0
     end = len(route_rule)
     re_rule = r''

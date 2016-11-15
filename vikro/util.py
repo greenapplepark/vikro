@@ -1,3 +1,10 @@
+"""
+vikro.util
+~~~~~~~~~~
+
+This module provides some utility functions.
+"""
+
 import ConfigParser
 import logging
 import logging.config
@@ -24,12 +31,14 @@ logging.config.dictConfig({
         }
     }
 })
- 
+
 class Config2Dict(ConfigParser.ConfigParser):
+    """Convert configuration to a dict."""
 
     def as_dict(self):
-        d = dict(self._sections)
-        for k in d:
-            d[k] = dict(self._defaults, **d[k])
-            d[k].pop('__name__', None)
-        return d
+        """Config to dict."""
+        config_dict = dict(self._sections)
+        for k in config_dict:
+            config_dict[k] = dict(self._defaults, **config_dict[k])
+            config_dict[k].pop('__name__', None)
+        return config_dict
