@@ -2,6 +2,7 @@
 HelloService example.
 """
 
+import vikro.exceptions as exc
 from vikro.service import BaseService, route
 
 class HelloService(BaseService):
@@ -20,21 +21,24 @@ class HelloService(BaseService):
         pass
 
     @route('/hello')
-    def test_hello(self, start_response):
-        start_response('200 OK', [('Content-Type', 'text/html')])
-        return [b'<b>hello world from hello module</b>']
+    def test_hello(self):
+        return 'Hello vikro!'
 
-    @route('/keke')
-    def test_keke(self, start_response):
-        self.get_proxy('HelloService').test(1, 2)
-        start_response('200 OK', [('Content-Type', 'text/html')])
-        return [b'<i>kekekekeke</i>']
+    @route('/rpc')
+    def test_rpc(self):
+        ret = self.get_proxy('HelloService', rpc_timeout=5).multi(3, 2)
+        return ret
 
     @route('/route_test/<int:test_int>/content/<string:test_string>')
-    def test_route(self, start_response, test_int, test_string):
-        start_response('200 OK', [('Content-Type', 'text/html')])
-        return [b'<i>int: %s, string: %s</i>' % (test_int, test_string)]
+    def test_route(self, test_int, test_string):
+        return 'int: {0}, string: {1}'.format(test_int, test_string)
 
-    def test(self, a, b):
-        # gevent.sleep(3)
+    def add(self, a, b):
         return a + b
+
+    def multi(self, a, b):
+        return a * b
+
+    @route('/exception')
+    def test_exception(self):
+        raise exc.VikroTooManyRequests()

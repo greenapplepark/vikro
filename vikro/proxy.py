@@ -19,7 +19,7 @@ from vikro.models import AMQPRequest
 
 logger = logging.getLogger(__name__)
 
-PROXY_TIMEOUT = 2
+RPC_TIMEOUT = 2
 
 
 def _id_generator(size=6, chars=string.ascii_letters + string.digits):
@@ -29,11 +29,12 @@ def _id_generator(size=6, chars=string.ascii_letters + string.digits):
 class Proxy(object):
     """Proxy to call RPC, using AMQP or RESTful way.
     """
-    def __init__(self, server_map, amqp, dest_service_name, src_service_name):
+    def __init__(self, server_map, amqp, dest_service_name, src_service_name, rpc_timeout):
         self._server_map = server_map
         self._amqp = amqp
         self._dest_service_name = dest_service_name
         self._src_service_name = src_service_name
+        self._rpc_timeout = RPC_TIMEOUT if rpc_timeout is None else rpc_timeout
 
     def __getattr__(self, attr):
         return functools.partial(self._rpc_handler, attr)
@@ -46,16 +47,19 @@ class Proxy(object):
             'proxy try to call %s with param %s and %s.',
             func_name, func_args, func_kwargs)
         exchange_name = 'service_{0}_exchange'.format(self._dest_service_name)
-        reply_to = 'service_{}_exchange'.format(self._src_service_name)
+        reply_to = 'service_{0}_exchange'.format(self._src_service_name)
         reply_key = _id_generator()
         request = AMQPRequest(func_name, func_args, func_kwargs, reply_to, reply_key)
-        listen_queue = 'service_{}_queue_{}'.format(self._src_service_name, reply_key)
+        listen_queue = 'service_{0}_queue_{1}'.format(self._src_service_name, reply_key)
         self._amqp.publish_message(request, exchange_name)
-        got_response = {'value' : False}
+        got_response = {'value': False}
+        response = {'data': None}
 
         def _on_response(request, message):
             got_response['value'] = True
+            response['data'] = message.payload
             logger.info('Get response %s.', message.payload)
+            message.ack()
 
         exchange = self._amqp.make_exchange(exchange_name)
         queue = self._amqp.make_queue(listen_queue, exchange, reply_key)
@@ -70,11 +74,15 @@ class Proxy(object):
                 try:
                     conn.drain_events(timeout=0.1)
                 except socket.timeout:
-                    if time.time() - start_time > PROXY_TIMEOUT:
-                        raise exc.VikroTimeoutException('timeout')
+                    if time.time() - start_time > self._rpc_timeout:
+                        raise exc.VikroRPCTimeout('timeout')
                 except KeyboardInterrupt:
                     return
                 except Exception, ex:
                     logger.error(ex)
                     break
                 gevent.sleep(0.1)
+        if response['data'].is_exception:
+            raise response['data'].result
+        else:
+            return response['data'].result

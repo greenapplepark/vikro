@@ -57,7 +57,7 @@ class StateMachine(object):
         """Change state."""
         if from_state != self._current_state:
             raise RuntimeError(
-                'Change state from {} to {} is not valid.'.format(self._current_state, to_state))
+                'Change state from {0} to {1} is not valid.'.format(self._current_state, to_state))
         if from_state != self._initial:
             self._wait_events[from_state].set()
         self._current_state = to_state

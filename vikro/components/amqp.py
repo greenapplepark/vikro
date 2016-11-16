@@ -22,7 +22,7 @@ class AMQPComponent(BaseComponent):
     def __init__(self, server_address, server_port, username, password):
         super(AMQPComponent, self).__init__()
         self._component_type = COMPONENT_TYPE_AMQP
-        self._url = 'amqp://{}:{}@{}:{}/'.format(username, password, server_address, server_port)
+        self._url = 'amqp://{0}:{1}@{2}:{3}/'.format(username, password, server_address, server_port)
         self._connection = kombu.Connection(self._url)
         self._should_keep_connect = False
         self._next_retry = 2

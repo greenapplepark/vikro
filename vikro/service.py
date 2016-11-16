@@ -8,6 +8,7 @@ This module contains BaseSevice, base class of all services.
 import runpy
 import types
 import functools
+import json
 import logging
 import gevent
 from gevent.pywsgi import WSGIServer
@@ -16,6 +17,7 @@ from vikro.route import parse_route_rule
 from vikro.proxy import Proxy
 from vikro.components import BaseComponent, COMPONENT_TYPE_AMQP
 from vikro.models import AMQPRequest, AMQPResponse
+import vikro.exceptions as exc 
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,10 @@ class BaseService(object):
     def add_component_from_config(self, service_config):
         """Read config file and spawn components."""
         for module_name in service_config:
-            modules = runpy.run_module('vikro.components.' + module_name)
+            try:
+                modules = runpy.run_module('vikro.components.' + module_name)
+            except ImportError:
+                continue
             for module in modules:
                 if (type(modules[module]) == types.TypeType
                         and modules[module] != BaseComponent
@@ -113,10 +118,10 @@ class BaseService(object):
         """Reload service."""
         pass
 
-    def get_proxy(self, dest_service_name):
+    def get_proxy(self, dest_service_name, rpc_timeout=None):
         """Get proxy object to call RPC."""
         amqp = self._components.get(COMPONENT_TYPE_AMQP)
-        return Proxy(None, amqp, dest_service_name, type(self).__name__)
+        return Proxy(None, amqp, dest_service_name, type(self).__name__, rpc_timeout)
 
     @property
     def is_running(self):
@@ -142,18 +147,29 @@ class BaseService(object):
     def dispatcher(self, env, start_response):
         """Dispatcher RESTful based http request to handlers."""
         if self._state_machine.current_state != 'running':
-            start_response('503 Service Unavailable',
-                           [('Content-Type', 'text/html')])
-            return [b'<h1>Service Unavailable</h1>']
+            start_response('503', [('Content-Type', 'application/json')])
+            return []
         for route_pattern, view_func_name in self.route_table.iteritems():
             match_obj = route_pattern.match(env['PATH_INFO'])
             if match_obj is not None:
                 match_group = match_obj.groupdict()
                 view_func = getattr(self, view_func_name)
-                return view_func(start_response, **match_group)
+                try:
+                    ret = json.dumps(view_func(**match_group))
+                    start_response('200', [('Content-Type', 'application/json')])
+                    return [ret]
+                except exc.VikroException, vex:
+                    logger.error(vex)
+                    ret_code = exc.EXCEPTION_CODE_MAPPING.get(vex.__class__, '500')
+                    start_response(ret_code, [('Content-Type', 'application/json')])
+                    return []
+                except Exception, ex:
+                    logger.error(ex)
+                    start_response('500', [('Content-Type', 'application/json')])
+                    return []
         else:
-            start_response('404 Not Found', [('Content-Type', 'text/html')])
-            return [b'<h1>Not Found</h1>']
+            start_response('404', [('Content-Type', 'application/json')])
+            return []
 
     @greenlet
     def _on_amqp_request(self, request, message):

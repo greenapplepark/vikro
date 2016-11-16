@@ -18,24 +18,36 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.getcwd())
 
+DEFAULT_SERVICE_PORT = 31226
+
 def run_vikro():
     """Use vikro to run vikro."""
     parser = argparse.ArgumentParser(prog='vikro')
     parser.add_argument(
         '-v', '--version',
         action='version',
-        version='%(prog)s {}'.format(vikro.__version__))
+        version='%(prog)s {0}'.format(vikro.__version__))
     parser.add_argument('service', nargs='?', help="""
         service class path to run (modulename.ServiceClass)
         """.strip())
     parser.add_argument('-c', '--config', help="""
         config file to specify amqp server, name server and more
         """.strip())
+    parser.add_argument('-p', '--port', help="""
+        specific port that the service listen to 
+        """.strip())
     args = parser.parse_args()
     if args.service:
         try:
             module_name, class_name = parse_module_class(args.service)
             service_config = parse_config(args.config, module_name)
+            if 'service' not in service_config:
+                service_config['service'] = {}
+            if args.port is not None:
+                service_config['service']['port'] = int(args.port)
+            else:
+                if 'port' not in service_config['service']:
+                    service_config['service'] = DEFAULT_SERVICE_PORT
             service_class = get_service_class(module_name, class_name)
             start_service(service_class, service_config)
         except RuntimeError, ex:
@@ -82,18 +94,18 @@ def get_service_class(module_name, class_name):
             module = runpy.run_module(module_name + '.__init__')
     except ImportError, ex:
         raise RuntimeError(
-            'Unable to load class path: {}.{}:\n{}'.format(module_name, class_name, ex))
+            'Unable to load class path: {0}.{1}:\n{2}'.format(module_name, class_name, ex))
     try:
         return module[class_name]
     except KeyError:
         raise RuntimeError(
-            'Unable to find service class in module: {}.'.format(module_name))
+            'Unable to find service class in module: {0}.'.format(module_name))
 
 def start_service(service_class, service_config):
     """Start vikro service."""
     service = service_class(service_config)
     if not isinstance(service, vikro.service.BaseService):
-        raise RuntimeError('{} is not Service type\n'.format(service_class))
+        raise RuntimeError('{0} is not Service type\n'.format(service_class))
     try:
         service.start()
     except KeyboardInterrupt:

@@ -16,13 +16,14 @@ class AMQPRequest(object):
         self.reply_key = reply_key
 
     def __str__(self):
-        return ('AMQPRequest(func_name={}, func_args={}, func_kwargs={}, reply_to={}, reply_key={})'
-                .format(
-                    self.func_name,
-                    self.func_args,
-                    self.func_kwargs,
-                    self.reply_to,
-                    self.reply_key))
+        return (
+            ('AMQPRequest(func_name={0},func_args={1}, '
+             'func_kwargs={2}, reply_to={3}, reply_key={4})').format(
+                 self.func_name,
+                 self.func_args,
+                 self.func_kwargs,
+                 self.reply_to,
+                 self.reply_key))
 
 class AMQPResponse(object):
     """The response object received from AMQP broker.
@@ -32,7 +33,7 @@ class AMQPResponse(object):
         self.result = result
 
     def __str__(self):
-        return 'AMQPResponse(result={})'.format(self.result)
+        return 'AMQPResponse(result={0})'.format(self.result)
 
     @property
     def is_exception(self):
