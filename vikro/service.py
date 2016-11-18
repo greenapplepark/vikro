@@ -17,7 +17,7 @@ from vikro.route import parse_route_rule
 from vikro.proxy import Proxy
 from vikro.components import BaseComponent, COMPONENT_TYPE_AMQP
 from vikro.models import AMQPRequest, AMQPResponse
-import vikro.exceptions as exc 
+import vikro.exceptions as exc
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,7 @@ class BaseService(object):
         self._state_machine = StateMachine(self.state_machine_config)
         self._components = {}
         self.add_component_from_config(service_config)
+        self._port = int(service_config['service']['port'])
 
     def add_component_from_config(self, service_config):
         """Read config file and spawn components."""
@@ -92,8 +93,8 @@ class BaseService(object):
         Starting WSGI Server, spawn components,
         start amqp listener if has.
         """
-        logger.info('Serving on 8088...')
-        WSGIServer(('', 8088), self.dispatcher).start()
+        logger.info('Serving on %s...', self._port)
+        WSGIServer(('', self._port), self.dispatcher).start()
         gevent.joinall(
             [gevent.spawn(c.initialize) for c in self._components.itervalues()])
         if COMPONENT_TYPE_AMQP in self._components:
@@ -174,11 +175,11 @@ class BaseService(object):
     @greenlet
     def _on_amqp_request(self, request, message):
         """Handle amqp rpc request in greenlet."""
-        logger.info('Got message: %s', message.payload)
+        logger.info('_on_request got request %s.', message.payload)
+        message.ack()
         if isinstance(message.payload, AMQPRequest):
             req = message.payload
             func = getattr(self, req.func_name, None)
-            logger.info('_on_request got request %s.', message.payload)
             if func is not None:
                 try:
                     response = func(*req.func_args, **req.func_kwargs)

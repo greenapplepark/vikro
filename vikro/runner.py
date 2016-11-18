@@ -44,7 +44,7 @@ def run_vikro():
             if 'service' not in service_config:
                 service_config['service'] = {}
             if args.port is not None:
-                service_config['service']['port'] = int(args.port)
+                service_config['service']['port'] = args.port
             else:
                 if 'port' not in service_config['service']:
                     service_config['service'] = DEFAULT_SERVICE_PORT

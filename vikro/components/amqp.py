@@ -22,7 +22,11 @@ class AMQPComponent(BaseComponent):
     def __init__(self, server_address, server_port, username, password):
         super(AMQPComponent, self).__init__()
         self._component_type = COMPONENT_TYPE_AMQP
-        self._url = 'amqp://{0}:{1}@{2}:{3}/'.format(username, password, server_address, server_port)
+        self._url = 'amqp://{0}:{1}@{2}:{3}/'.format(
+            username,
+            password,
+            server_address,
+            server_port)
         self._connection = kombu.Connection(self._url)
         self._should_keep_connect = False
         self._next_retry = 2
@@ -114,13 +118,17 @@ class AMQPComponent(BaseComponent):
             name,
             ex_type,
             durable=durable,
-            auto_delete=auto_delete)
+            auto_delete=auto_delete,
+            channel=self._connection)
 
     def make_queue(self, name, exchange, routing_key='default', durable=True, auto_delete=True):
         """Make a kombu queue."""
-        return kombu.Queue(
+        ret_queue = kombu.Queue(
             name,
             exchange,
             routing_key=routing_key,
             durable=durable,
-            auto_delete=auto_delete)
+            auto_delete=auto_delete,
+            channel=self._connection)
+        ret_queue.declare()
+        return ret_queue

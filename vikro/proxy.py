@@ -35,6 +35,12 @@ class Proxy(object):
         self._dest_service_name = dest_service_name
         self._src_service_name = src_service_name
         self._rpc_timeout = RPC_TIMEOUT if rpc_timeout is None else rpc_timeout
+        self._reply_key = _id_generator()
+
+        src_exchange_name = 'service_{0}_exchange'.format(self._src_service_name)
+        listen_queue_name = 'service_{0}_queue_{1}'.format(self._src_service_name, self._reply_key)
+        src_exchange = self._amqp.make_exchange(src_exchange_name)
+        self._listen_queue = self._amqp.make_queue(listen_queue_name, src_exchange, self._reply_key)
 
     def __getattr__(self, attr):
         return functools.partial(self._rpc_handler, attr)
@@ -46,12 +52,10 @@ class Proxy(object):
         logger.info(
             'proxy try to call %s with param %s and %s.',
             func_name, func_args, func_kwargs)
-        exchange_name = 'service_{0}_exchange'.format(self._dest_service_name)
+        dest_exchange_name = 'service_{0}_exchange'.format(self._dest_service_name)
         reply_to = 'service_{0}_exchange'.format(self._src_service_name)
-        reply_key = _id_generator()
-        request = AMQPRequest(func_name, func_args, func_kwargs, reply_to, reply_key)
-        listen_queue = 'service_{0}_queue_{1}'.format(self._src_service_name, reply_key)
-        self._amqp.publish_message(request, exchange_name)
+        request = AMQPRequest(func_name, func_args, func_kwargs, reply_to, self._reply_key)
+        self._amqp.publish_message(request, dest_exchange_name)
         got_response = {'value': False}
         response = {'data': None}
 
@@ -61,15 +65,13 @@ class Proxy(object):
             logger.info('Get response %s.', message.payload)
             message.ack()
 
-        exchange = self._amqp.make_exchange(exchange_name)
-        queue = self._amqp.make_queue(listen_queue, exchange, reply_key)
         conn = self._amqp.get_connection()
         start_time = time.time()
         # Here I tried to get message using raw api from kombu rather than
         # using methods in AMQPComponent because it looks kombu doesn't
         # support get only one message. It will try to drain event till
         # timeout even if it already got one message.
-        with conn.Consumer(queues=queue, callbacks=[_on_response], accept=['pickle']):
+        with conn.Consumer(queues=self._listen_queue, callbacks=[_on_response], accept=['pickle']):
             while not got_response['value']:
                 try:
                     conn.drain_events(timeout=0.1)
