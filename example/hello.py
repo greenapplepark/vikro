@@ -24,6 +24,10 @@ class HelloService(BaseService):
     def test_hello(self):
         return 'Hello vikro!'
 
+    @route('/hello', verb='post')
+    def test_post_hello(self):
+        return 'Hello post vikro!'
+
     @route('/rpc')
     def test_rpc(self):
         ret = self.get_proxy('MathService').subtract(10, 2)

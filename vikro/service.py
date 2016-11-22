@@ -13,7 +13,7 @@ import logging
 import gevent
 from gevent.pywsgi import WSGIServer
 from vikro.fsm import StateMachine
-from vikro.route import parse_route_rule
+from vikro.route import RouteData
 from vikro.proxy import Proxy
 from vikro.components import BaseComponent, COMPONENT_TYPE_AMQP
 from vikro.models import AMQPRequest, AMQPResponse
@@ -37,9 +37,10 @@ class BaseServiceType(type):
     def __init__(cls, name, bases, attrs):
         for key, val in attrs.iteritems():
             rule = getattr(val, 'route_rule', None)
+            verb = getattr(val, 'verb', None)
             if rule is not None:
-                re_rule = parse_route_rule(rule)
-                cls.route_table[re_rule] = key
+                route_obj = RouteData(verb, rule, key)
+                cls.route_table[route_obj] = key
 
 class BaseService(object):
     """Base class of Service.
@@ -130,10 +131,11 @@ class BaseService(object):
         return self._state_machine.current_state == 'running'
 
     @staticmethod
-    def route(rule):
+    def route(rule, verb='get'):
         """Route decorator to define routing url pattern."""
         def decorator(func):
             func.route_rule = rule
+            func.verb = verb
             return func
         return decorator
 
@@ -150,8 +152,10 @@ class BaseService(object):
         if self._state_machine.current_state != 'running':
             start_response('503', [('Content-Type', 'application/json')])
             return []
-        for route_pattern, view_func_name in self.route_table.iteritems():
-            match_obj = route_pattern.match(env['PATH_INFO'])
+        for route_obj, view_func_name in self.route_table.iteritems():
+            if route_obj.route_verb != env['REQUEST_METHOD'].lower():
+                continue
+            match_obj = route_obj.re_rule.match(env['PATH_INFO'])
             if match_obj is not None:
                 match_group = match_obj.groupdict()
                 view_func = getattr(self, view_func_name)
@@ -186,7 +190,7 @@ class BaseService(object):
                 except Exception, ex:
                     response = ex
             else:
-                response = Exception('MethodNotFound')
+                response = exc.VikroMethodNotFound('MethodNotFound')
             self._components[COMPONENT_TYPE_AMQP].publish_message(
                 AMQPResponse(response),
                 req.reply_to,

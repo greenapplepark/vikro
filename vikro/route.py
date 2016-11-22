@@ -41,3 +41,18 @@ def parse_route_rule(route_rule):
         re_rule += '(?P<%s>%s)' % (match_group['variable'], RE_REPLACEMENT[match_group['type']])
         pos = match_obj.end()
     return re.compile(re_rule)
+
+class RouteData(object):
+    """Store route data
+    * route verb
+    * route rule
+    * route regular compiled object
+    * route function name
+    """
+    __slots__ = ['route_verb', 'route_rule', 'func_name', 're_rule']
+
+    def __init__(self, route_verb, route_rule, func_name):
+        self.route_verb = route_verb
+        self.route_rule = route_rule
+        self.func_name = func_name
+        self.re_rule = parse_route_rule(route_rule)
