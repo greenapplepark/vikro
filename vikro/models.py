@@ -14,7 +14,7 @@ class AMQPRequest(object):
         'func_kwargs',
         'reply_to',
         'reply_key'
-        ]
+    ]
 
     def __init__(self, func_name, func_args, func_kwargs, reply_to, reply_key):
         self.func_name = func_name

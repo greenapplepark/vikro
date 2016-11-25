@@ -74,7 +74,7 @@ class Proxy(object):
         with conn.Consumer(queues=self._listen_queue, callbacks=[_on_response], accept=['pickle']):
             while not got_response['value']:
                 try:
-                    conn.drain_events(timeout=0.1)
+                    conn.drain_events(timeout=0.01)
                 except socket.timeout:
                     if time.time() - start_time > self._rpc_timeout:
                         raise exc.VikroRPCTimeout('timeout')
@@ -83,7 +83,7 @@ class Proxy(object):
                 except Exception, ex:
                     logger.error(ex)
                     break
-                gevent.sleep(0.1)
+                gevent.sleep(0)
         if response['data'].is_exception:
             raise response['data'].result
         else:

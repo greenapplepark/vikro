@@ -83,7 +83,7 @@ class AMQPComponent(BaseComponent):
             with conn.Consumer(queues=queue, callbacks=[callback], accept=['pickle']):
                 while self._should_keep_connect:
                     try:
-                        conn.drain_events(timeout=0.1)
+                        conn.drain_events(timeout=0.01)
                     except socket.timeout:
                         pass
                     except KeyboardInterrupt:
@@ -91,7 +91,7 @@ class AMQPComponent(BaseComponent):
                     except Exception, ex:
                         logger.error(ex)
                         break
-                    gevent.sleep(0.1)
+                    gevent.sleep(0.01)
 
     def publish_message(self, payload, exchange_name, routing_key='default'):
         """Publish message to specific exchange using routing_key."""
