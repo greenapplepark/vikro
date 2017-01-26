@@ -26,7 +26,7 @@ logging.config.dictConfig({
     'loggers': {
         '': {
             'handlers': ['default'],
-            'level': 'WARNING',
+            'level': 'INFO',
             'propagate': True
         }
     }

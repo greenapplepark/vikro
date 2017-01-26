@@ -11,6 +11,7 @@ import functools
 import json
 import logging
 import gevent
+import pickle
 from gevent.pywsgi import WSGIServer
 from vikro.fsm import StateMachine
 from vikro.route import RouteData
@@ -18,6 +19,7 @@ from vikro.proxy import Proxy
 from vikro.components import BaseComponent, COMPONENT_TYPE_AMQP
 from vikro.models import AMQPRequest, AMQPResponse
 import vikro.exceptions as exc
+from haigha.message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -177,22 +179,27 @@ class BaseService(object):
             return []
 
     @greenlet
-    def _on_amqp_request(self, request, message):
+    def _on_amqp_request(self, message):
         """Handle amqp rpc request in greenlet."""
-        logger.info('_on_request got request %s.', message.payload)
-        message.ack()
-        if isinstance(message.payload, AMQPRequest):
-            req = message.payload
+        req = pickle.loads(message.body)
+        logger.info('_on_request got request %s.', req)
+        # message.ack()
+        if isinstance(req, AMQPRequest):
             func = getattr(self, req.func_name, None)
             if func is not None:
                 try:
                     response = func(*req.func_args, **req.func_kwargs)
+                    logger.info('_on_amqp_request response %s', response)
                 except Exception, ex:
                     response = ex
             else:
                 response = exc.VikroMethodNotFound('MethodNotFound')
+
+            response = AMQPResponse(response)
+            msg = Message(pickle.dumps(response))
+            logger.info('send response %s', msg)
             self._components[COMPONENT_TYPE_AMQP].publish_message(
-                AMQPResponse(response),
+                msg,
                 req.reply_to,
                 req.reply_key)
 

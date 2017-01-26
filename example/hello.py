@@ -30,7 +30,7 @@ class HelloService(BaseService):
 
     @route('/rpc')
     def test_rpc(self):
-        ret = self.get_proxy('MathService').subtract(10, 2)
+        ret = self.get_proxy('HelloService').add(10, 2)
         return ret
 
     @route('/route_test/<int:test_int>/content/<string:test_string>')

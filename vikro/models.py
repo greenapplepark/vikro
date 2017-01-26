@@ -8,13 +8,13 @@ These class are used in AMQP RPC.
 
 class AMQPRequest(object):
     """The request object send to AMQP broker."""
-    __slots__ = [
-        'func_name',
-        'func_args',
-        'func_kwargs',
-        'reply_to',
-        'reply_key'
-    ]
+    # __slots__ = [
+    #     'func_name',
+    #     'func_args',
+    #     'func_kwargs',
+    #     'reply_to',
+    #     'reply_key'
+    # ]
 
     def __init__(self, func_name, func_args, func_kwargs, reply_to, reply_key):
         self.func_name = func_name
@@ -37,7 +37,7 @@ class AMQPResponse(object):
     """The response object received from AMQP broker.
     It could be an exception.
     """
-    __slots__ = ['result']
+    # __slots__ = ['result']
 
     def __init__(self, result):
         self.result = result
