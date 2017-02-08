@@ -13,24 +13,27 @@ class AMQPRequest(object):
     #     'func_args',
     #     'func_kwargs',
     #     'reply_to',
-    #     'reply_key'
+    #     'reply_key',
+    #     'response_id'
     # ]
 
-    def __init__(self, func_name, func_args, func_kwargs, reply_to, reply_key):
+    def __init__(self, func_name, func_args, func_kwargs, reply_to, response_id, reply_key):
         self.func_name = func_name
         self.func_args = func_args
         self.func_kwargs = func_kwargs
         self.reply_to = reply_to
+        self.response_id = response_id
         self.reply_key = reply_key
 
     def __str__(self):
         return (
             ('AMQPRequest(func_name={0},func_args={1}, '
-             'func_kwargs={2}, reply_to={3}, reply_key={4})').format(
+             'func_kwargs={2}, reply_to={3}, response_id={4}, reply_key={5})').format(
                  self.func_name,
                  self.func_args,
                  self.func_kwargs,
                  self.reply_to,
+                 self.response_id,
                  self.reply_key))
 
 class AMQPResponse(object):

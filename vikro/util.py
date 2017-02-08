@@ -5,8 +5,9 @@ vikro.util
 This module provides some utility functions.
 """
 
+import string
+import random
 import ConfigParser
-import logging
 import logging.config
 
 logging.config.dictConfig({
@@ -31,6 +32,12 @@ logging.config.dictConfig({
         }
     }
 })
+
+
+def id_generator(size=6, chars=string.ascii_letters + string.digits):
+    """Generate random string."""
+    return ''.join(random.choice(chars) for _ in range(size))
+
 
 class Config2Dict(ConfigParser.ConfigParser):
     """Convert configuration to a dict."""
