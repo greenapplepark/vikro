@@ -5,10 +5,14 @@ vikro.service
 This module contains BaseSevice, base class of all services.
 """
 
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import runpy
 import types
 import functools
-import json
+import pickle
 import logging
 import gevent
 from gevent.pywsgi import WSGIServer
@@ -18,6 +22,7 @@ from vikro.proxy import Proxy
 from vikro.components import BaseComponent, COMPONENT_TYPE_AMQP
 from vikro.models import AMQPRequest, AMQPResponse
 import vikro.exceptions as exc
+from haigha.message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +68,7 @@ class BaseService(object):
 
     def __init__(self, service_config):
         self._state_machine = StateMachine(self.state_machine_config)
+        self._service_name = type(self).__name__
         self._components = {}
         self.add_component_from_config(service_config)
         self._port = int(service_config['service']['port'])
@@ -78,7 +84,7 @@ class BaseService(object):
                 if (type(modules[module]) == types.TypeType
                         and modules[module] != BaseComponent
                         and issubclass(modules[module], BaseComponent)):
-                    instance = modules[module](**service_config[module_name])
+                    instance = modules[module](self._service_name, **service_config[module_name])
                     self._components[instance.component_type] = instance
 
     def start(self):
@@ -143,9 +149,7 @@ class BaseService(object):
     def _start_amqp_event_listener(self):
         """Start to listen rpc message from amqp server."""
         amqp = self._components[COMPONENT_TYPE_AMQP]
-        service_name = type(self).__name__
-        queue_name = 'service_{0}_queue'.format(service_name)
-        amqp.listen_to_queue(service_name, queue_name, self._on_amqp_request)
+        amqp.listen_to_queue(self._on_amqp_request)
 
     def dispatcher(self, env, start_response):
         """Dispatcher RESTful based http request to handlers."""
@@ -177,12 +181,11 @@ class BaseService(object):
             return []
 
     @greenlet
-    def _on_amqp_request(self, request, message):
+    def _on_amqp_request(self, message):
         """Handle amqp rpc request in greenlet."""
-        logger.info('_on_request got request %s.', message.payload)
-        message.ack()
-        if isinstance(message.payload, AMQPRequest):
-            req = message.payload
+        logger.debug('[_on_amqp_request] got raw request %s.', message)
+        req = pickle.loads(message.body)
+        if isinstance(req, AMQPRequest):
             func = getattr(self, req.func_name, None)
             if func is not None:
                 try:
@@ -191,9 +194,11 @@ class BaseService(object):
                     response = ex
             else:
                 response = exc.VikroMethodNotFound('MethodNotFound')
-            self._components[COMPONENT_TYPE_AMQP].publish_message(
-                AMQPResponse(response),
+            response = AMQPResponse(response)
+            msg = Message(pickle.dumps(response), correlation_id=req.reply_key)
+            self._components[COMPONENT_TYPE_AMQP].send_response(
+                msg,
                 req.reply_to,
-                req.reply_key)
+                req.response_id)
 
 route = BaseService.route
