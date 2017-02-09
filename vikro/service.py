@@ -12,7 +12,6 @@ except ImportError:
 import runpy
 import types
 import functools
-import pickle
 import logging
 import gevent
 from gevent.pywsgi import WSGIServer
@@ -184,7 +183,7 @@ class BaseService(object):
     def _on_amqp_request(self, message):
         """Handle amqp rpc request in greenlet."""
         logger.debug('[_on_amqp_request] got raw request %s.', message)
-        req = pickle.loads(message.body)
+        req = AMQPRequest.from_json(message.body)
         if isinstance(req, AMQPRequest):
             func = getattr(self, req.func_name, None)
             if func is not None:
@@ -195,7 +194,7 @@ class BaseService(object):
             else:
                 response = exc.VikroMethodNotFound('MethodNotFound')
             response = AMQPResponse(response)
-            msg = Message(pickle.dumps(response), correlation_id=req.reply_key)
+            msg = Message(response.to_json(), correlation_id=req.reply_key)
             self._components[COMPONENT_TYPE_AMQP].send_response(
                 msg,
                 req.reply_to,

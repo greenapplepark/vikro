@@ -39,7 +39,11 @@ class HelloService(BaseService):
         """Test RPC call to another service."""
         add1 = randint(0, 100)
         add2 = randint(0, 100)
-        ret = self.get_proxy('MathService').add(add1, add2)
+        try:
+            ret = self.get_proxy('MathService').add(add1, add2)
+        except Exception, ex:
+            ret = None
+            logger.error(ex)
         logger.info('Got response: %s + %s = %s', add1, add2, ret)
         return ret
 

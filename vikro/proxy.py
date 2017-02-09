@@ -9,7 +9,7 @@ This module provides 2 method to do RPC between services.
 
 import functools
 import logging
-import pickle
+import importlib
 import vikro.exceptions as exc
 from vikro.models import AMQPRequest, AMQPResponse
 from vikro.util import id_generator
@@ -51,7 +51,8 @@ class Proxy(object):
             self._amqp.exchange_name,
             self._amqp.response_id,
             self._reply_key)
-        msg = Message(pickle.dumps(request), correlation_id=self._reply_key)
+        msg = Message(request.to_json(), correlation_id=self._reply_key)
+        logger.debug('[_rpc_handler] send rpc raw: %s', msg)
         self._amqp.register_rpc_callback(self._reply_key, self.on_rpc_response)
         self._amqp.send_request(msg, dest_exchange_name)
         self._wait_event.wait(timeout=self._rpc_timeout)
@@ -60,16 +61,14 @@ class Proxy(object):
             raise exc.VikroRPCTimeout
         if isinstance(self._response, AMQPResponse):
             if self._response.is_exception:
-                raise self._response.result
+                _module = importlib.import_module(self._response.result['exception_module'])
+                _class = getattr(_module, self._response.result['exception_name'])
+                raise _class(self._response.result['exception_message'])
             else:
                 return self._response.result
 
     def on_rpc_response(self, message):
         """RPC response handler"""
         logger.debug('[on_rpc_response] receive response: %s', message)
-        self._response = pickle.loads(message.body)
+        self._response = AMQPResponse.from_json(message.body)
         self._wait_event.set()
-        if self._response.is_exception:
-            raise self._response.result
-        else:
-            return self._response.result
