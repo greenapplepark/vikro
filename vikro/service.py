@@ -101,10 +101,11 @@ class BaseService(object):
         """
         logger.info('Serving on %s...', self._port)
         WSGIServer(('', self._port), self.dispatcher).start()
+        # Setup main callback for amqp if having
+        if COMPONENT_TYPE_AMQP in self._components:
+            self._components[COMPONENT_TYPE_AMQP].set_main_callback(self.on_amqp_request)
         gevent.joinall(
             [gevent.spawn(c.initialize) for c in self._components.itervalues()])
-        if COMPONENT_TYPE_AMQP in self._components:
-            self._start_amqp_event_listener()
         self._state_machine.started()
 
     def stop(self):
@@ -144,12 +145,6 @@ class BaseService(object):
             return func
         return decorator
 
-    @greenlet
-    def _start_amqp_event_listener(self):
-        """Start to listen rpc message from amqp server."""
-        amqp = self._components[COMPONENT_TYPE_AMQP]
-        amqp.listen_to_queue(self._on_amqp_request)
-
     def dispatcher(self, env, start_response):
         """Dispatcher RESTful based http request to handlers."""
         if self._state_machine.current_state != 'running':
@@ -180,9 +175,9 @@ class BaseService(object):
             return []
 
     @greenlet
-    def _on_amqp_request(self, message):
+    def on_amqp_request(self, message):
         """Handle amqp rpc request in greenlet."""
-        logger.debug('[_on_amqp_request] got raw request %s.', message)
+        logger.debug('[on_amqp_request] got raw request %s.', message)
         req = AMQPRequest.from_json(message.body)
         if isinstance(req, AMQPRequest):
             func = getattr(self, req.func_name, None)

@@ -41,7 +41,7 @@ class Proxy(object):
         Send request to AMQP broker and wait for response with timeout.
         """
         logger.debug(
-            '[_rpc_handler] proxy try to call %s with param %s and %s.',
+            '[_rpc_handler] Proxy try to call %s with param %s and %s.',
             func_name, func_args, func_kwargs)
         dest_exchange_name = 'service_{0}_exchange'.format(self._dest_service_name)
         request = AMQPRequest(
@@ -52,7 +52,7 @@ class Proxy(object):
             self._amqp.response_id,
             self._reply_key)
         msg = Message(request.to_json(), correlation_id=self._reply_key)
-        logger.debug('[_rpc_handler] send rpc raw: %s', msg)
+        logger.debug('[_rpc_handler] send rpc raw: %s.', msg)
         self._amqp.register_rpc_callback(self._reply_key, self.on_rpc_response)
         self._amqp.send_request(msg, dest_exchange_name)
         self._wait_event.wait(timeout=self._rpc_timeout)
@@ -69,6 +69,6 @@ class Proxy(object):
 
     def on_rpc_response(self, message):
         """RPC response handler"""
-        logger.debug('[on_rpc_response] receive response: %s', message)
+        logger.debug('[on_rpc_response] receive response: %s.', message)
         self._response = AMQPResponse.from_json(message.body)
         self._wait_event.set()

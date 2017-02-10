@@ -2,7 +2,6 @@
 MathService example.
 """
 
-import vikro.exceptions as exc
 from vikro.service import BaseService, route
 
 class MathService(BaseService):

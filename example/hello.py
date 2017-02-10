@@ -44,7 +44,7 @@ class HelloService(BaseService):
         except Exception, ex:
             ret = None
             logger.error(ex)
-        logger.info('Got response: %s + %s = %s', add1, add2, ret)
+        logger.info('[test_rpc] Got response: %s + %s = %s.', add1, add2, ret)
         return ret
 
     @route('/route_test/<int:test_int>/content/<string:test_string>')

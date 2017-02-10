@@ -57,7 +57,7 @@ def run_vikro():
 
 def run_vikromgr():
     """Run vikro manager."""
-    logger.info('run_vikromgr.')
+    logger.info('[run_vikromgr] run_vikromgr.')
 
 def parse_module_class(service_path):
     """Get module name and class name from command line."""
@@ -82,7 +82,7 @@ def parse_config(config, module_name):
             config_parser.read(config_file_path)
             service_config = config_parser.as_dict()
         else:
-            logger.warning('Cannot find config file. Your service will run alone.')
+            logger.warning('[parse_config] Cannot find config file. Your service will run alone.')
     return service_config
 
 def get_service_class(module_name, class_name):
