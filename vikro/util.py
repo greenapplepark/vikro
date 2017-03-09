@@ -23,11 +23,19 @@ logging.config.dictConfig({
             'level':'DEBUG',
             'class':'logging.StreamHandler',
         },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'level': 'DEBUG',
+            'filename': 'kekelog.txt',
+            'mode': 'a',
+            'maxBytes': 10485760,
+            'backupCount': 5,
+        }
     },
     'loggers': {
         '': {
-            'handlers': ['default'],
-            'level': 'INFO',
+            'handlers': ['file'],
+            'level': 'DEBUG',
             'propagate': True
         }
     }
