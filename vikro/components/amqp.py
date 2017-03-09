@@ -120,7 +120,8 @@ class AMQPComponent(BaseComponent):
                         self._next_retry = 2
                     except KeyboardInterrupt:
                         break
-                    except Exception:
+                    except Exception, ex:
+                        logger.error(ex)
                         gevent.sleep(self._next_retry)
                         self._next_retry = min(self._next_retry * 2, 120)
                     finally:
