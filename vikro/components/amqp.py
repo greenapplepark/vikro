@@ -6,6 +6,7 @@ This module provides amqp support for vikro, using haigha.
 """
 
 import uuid
+import socket
 import logging
 import gevent
 import haigha.connection
@@ -49,6 +50,11 @@ class AMQPComponent(BaseComponent):
         self._should_keep_connect = True
         try:
             self._initialize()
+        except socket.error:
+            logger.warning(
+                '[initialize] Failed to connect to AMQP server %s:%s.',
+                self._address,
+                self._port)
         except Exception, ex:
             logger.warning(
                 '[initialize] Failed to connect to AMQP server %s:%s, %s.',
@@ -102,7 +108,7 @@ class AMQPComponent(BaseComponent):
         """A greenlet try to keep amqp connections."""
         while self._should_keep_connect:
             try:
-                if not self._connection.closed:
+                if self._connection and not self._connection.closed:
                     logger.debug(
                         '[_keep_connecting] Connected to %s:%s!',
                         self._address,
@@ -120,15 +126,20 @@ class AMQPComponent(BaseComponent):
                         self._next_retry = 2
                     except KeyboardInterrupt:
                         break
+                    except (socket.error, socket.timeout):
+                        logger.debug(
+                            '[_keep_connecting] Failed to connect AMQP, wait %s to retry',
+                            self._next_retry)
+                        gevent.sleep(self._next_retry)
+                        self._next_retry = min(self._next_retry * 2, 60)
                     except Exception, ex:
                         logger.error(ex)
                         gevent.sleep(self._next_retry)
-                        self._next_retry = min(self._next_retry * 2, 120)
-                    finally:
-                        # self._close_connections()
-                        pass
+                        self._next_retry = min(self._next_retry * 2, 60)
             except KeyboardInterrupt:
                 break
+            except Exception, ex:
+                logger.error(ex)
 
     def finalize(self):
         self._should_keep_connect = False
@@ -136,17 +147,17 @@ class AMQPComponent(BaseComponent):
 
     def _close_connections(self):
         """Close channels and connections."""
-        if self._rpc_server_channel:
+        try:
             self._rpc_server_channel.close()
-            self._rpc_server_channel = None
-        if self._rpc_response_channel:
             self._rpc_response_channel.close()
-            self._rpc_response_channel = None
-        if self._rpc_request_channel:
             self._rpc_request_channel.close()
-            self._rpc_request_channel = None
-        if self._connection:
             self._connection.close()
+        except Exception, ex:
+            pass
+        finally:
+            self._rpc_server_channel = None
+            self._rpc_response_channel = None
+            self._rpc_request_channel = None
             self._connection = None
 
     def set_main_callback(self, callback):
@@ -161,22 +172,31 @@ class AMQPComponent(BaseComponent):
             if self._main_callback is None:
                 gevent.sleep(10)
             else:
-                try:
-                    logger.debug('[_pump] Try to setup consume queues.')
-                    self._rpc_server_channel.basic.consume(
-                        queue=self._server_queue_name,
-                        consumer=self._main_callback,
-                        no_ack=True)
-                    self._rpc_response_channel.basic.consume(
-                        queue=self._response_queue_name,
-                        consumer=self._handle_rpc_response,
-                        no_ack=True)
-                except Exception, ex:
-                    logger.error(ex)
-                    gevent.sleep(self._next_retry)
+                if (self._rpc_server_channel is None
+                        or self._rpc_response_channel is None):
+                    logger.debug('[_pump] Channels are None.')
+                    gevent.sleep(10)
                     continue
+                else:
+                    try:
+                        logger.debug('[_pump] Try to setup consume queues.')
+                        self._rpc_server_channel.basic.consume(
+                            queue=self._server_queue_name,
+                            consumer=self._main_callback,
+                            no_ack=True)
+                        self._rpc_response_channel.basic.consume(
+                            queue=self._response_queue_name,
+                            consumer=self._handle_rpc_response,
+                            no_ack=True)
+                    except Exception, ex:
+                        # self._close_connections()
+                        logger.debug('[_pump] %s', type(ex))
+                        logger.error(ex)
+                        gevent.sleep(self._next_retry)
+                        self._next_retry = min(self._next_retry * 2, 60)
+                        continue
                 # always try to listen
-                while self._should_keep_connect and not self._connection.closed:
+                while self._should_keep_connect and self._connection and not self._connection.closed:
                     try:
                         # Pump
                         self._connection.read_frames()
@@ -184,10 +204,11 @@ class AMQPComponent(BaseComponent):
                         gevent.sleep()
                     except KeyboardInterrupt:
                         break
+                    except socket.error:
+                        self._close_connections()
+                        break
                     except Exception, ex:
                         logger.error(ex)
-                    finally:
-                        pass
 
     def _handle_rpc_response(self, message):
         """Handle rpc response and send response back to requester."""
