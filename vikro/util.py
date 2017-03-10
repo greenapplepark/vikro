@@ -19,14 +19,14 @@ logging.config.dictConfig({
         },
     },
     'handlers': {
-        'default': {
-            'level':'DEBUG',
+        'console': {
+            'level':'INFO',
             'class':'logging.StreamHandler',
         },
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'level': 'DEBUG',
-            'filename': 'kekelog.txt',
+            'level': 'INFO',
+            'filename': 'vikro_log.txt',
             'mode': 'a',
             'maxBytes': 10485760,
             'backupCount': 5,
@@ -34,8 +34,8 @@ logging.config.dictConfig({
     },
     'loggers': {
         '': {
-            'handlers': ['file'],
-            'level': 'DEBUG',
+            'handlers': ['console'],
+            'level': 'INFO',
             'propagate': True
         }
     }
